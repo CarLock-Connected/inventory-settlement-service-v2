@@ -1,0 +1,23 @@
+embed-server --std-out=echo
+
+# Register MySQL JDBC driver
+/subsystem=datasources/jdbc-driver=mysql:add( \
+  driver-name=mysql, \
+  driver-module-name=com.mysql, \
+  driver-class-name=com.mysql.cj.jdbc.Driver \
+)
+
+# Create the FlashSale datasource
+data-source add \
+  --jndi-name=java:jboss/datasources/FlashSaleDS \
+  --name=FlashSaleDS \
+  --driver-name=mysql \
+  --connection-url=jdbc:mysql://mysql:3306/flashsale?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC \
+  --user-name=flashsale \
+  --password=flashsale_dev \
+  --min-pool-size=5 \
+  --max-pool-size=20 \
+  --valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.mysql.MySQLValidConnectionChecker \
+  --exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.mysql.MySQLExceptionSorter
+
+stop-embedded-server

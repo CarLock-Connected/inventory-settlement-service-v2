@@ -1,0 +1,58 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: flashsale
+      MYSQL_USER: flashsale
+      MYSQL_PASSWORD: flashsale_dev
+      MYSQL_ROOT_PASSWORD: flashsale_root
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db/migration:/docker-entrypoint-initdb.d
+      - mysqldata:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uflashsale", "-pflashsale_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:4.0-alpine
+    ports:
+      - "6379:6379"
+
+  # WildFly 10 application server with MySQL datasource pre-configured
+  wildfly:
+    build: ./docker/wildfly
+    ports:
+      - "8080:8080"
+      - "9990:9990"
+    volumes:
+      - ./target/flash-sale.war:/opt/jboss/wildfly/standalone/deployments/flash-sale.war
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - JAVA_OPTS=-Dpricing.service.url=http://pricing-mock:8080/api/v1/tax-rate
+
+  # Simulates the "slow neighbor" external pricing service
+  # Returns a tax rate after a random delay (0-10 seconds)
+  # ~5% of requests return HTTP 500
+  pricing-mock:
+    image: alpine:3.8
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        apk add --no-cache socat &&
+        chmod +x /mock/handler.sh &&
+        socat TCP-LISTEN:8080,fork,reuseaddr EXEC:/mock/handler.sh
+    volumes:
+      - ./docker/pricing-mock:/mock
+
+volumes:
+  mysqldata:
